@@ -49,6 +49,109 @@
         
         /* COMMAND BAR */
         #cmd { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); width: 85%; max-width: 400px; z-index: 101; background: #111; border: 1px solid #444; color: var(--accent); padding: 12px 15px; font-size: 12px; font-family: inherit; outline: none; display: none; box-shadow: 0 0 20px rgba(76, 201, 240, 0.1); }
+
+        /* HELP MODAL */
+        .help-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 200;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .help-modal.active {
+            display: flex;
+        }
+
+        .help-content {
+            background: #0a0a0a;
+            border: 1px solid #444;
+            border-radius: 0px;
+            padding: 20px;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        .help-header {
+            color: var(--accent);
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+            letter-spacing: 2px;
+        }
+
+        .help-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .help-line {
+            display: flex;
+            gap: 15px;
+            font-size: 12px;
+            align-items: flex-start;
+        }
+
+        .help-line .cmd {
+            color: var(--accent);
+            min-width: 180px;
+            font-weight: bold;
+        }
+
+        .help-line .desc {
+            color: #888;
+            flex: 1;
+        }
+
+        .help-footer {
+            text-align: center;
+            color: #555;
+            font-size: 11px;
+            padding-top: 10px;
+            border-top: 1px solid #333;
+            letter-spacing: 0.5px;
+        }
+
+        /* Scrollbar styling */
+        .help-content::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .help-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .help-content::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        .help-content::-webkit-scrollbar-thumb:hover {
+            background: var(--accent);
+        }
     </style>
 </head>
 <body>
@@ -66,6 +169,25 @@
     </div>
     
     <input type="text" id="cmd" placeholder="Try: :text red, :ink blue, :weight 5, :eraser 20, :wipe">
+
+    <div id="help-modal" class="help-modal">
+        <div class="help-content">
+            <div class="help-header">GHOSTNOTE COMMANDS</div>
+            <div class="help-body">
+                <div class="help-line"><span class="cmd">:text [color]</span><span class="desc">Change text color</span></div>
+                <div class="help-line"><span class="cmd">:text-opacity [0-100]</span><span class="desc">Text transparency</span></div>
+                <div class="help-line"><span class="cmd">:ink [color]</span><span class="desc">Change pen color</span></div>
+                <div class="help-line"><span class="cmd">:pen [0-100]</span><span class="desc">Pen transparency</span></div>
+                <div class="help-line"><span class="cmd">:weight [number]</span><span class="desc">Pen thickness</span></div>
+                <div class="help-line"><span class="cmd">:eraser [number]</span><span class="desc">Eraser size</span></div>
+                <div class="help-line"><span class="cmd">:size [pixels]</span><span class="desc">Text size</span></div>
+                <div class="help-line"><span class="cmd">:ghost [0-100]</span><span class="desc">Background opacity</span></div>
+                <div class="help-line"><span class="cmd">:wipe / :clear / :reset</span><span class="desc">Clear all</span></div>
+                <div class="help-line"><span class="cmd">:help / :?</span><span class="desc">Show this menu</span></div>
+            </div>
+            <div class="help-footer">ESC to close • Click outside to dismiss</div>
+        </div>
+    </div>
 
     <script>
         const canvas = document.getElementById('paintCanvas');
@@ -154,6 +276,24 @@
 
         function openCmd() { cmdInput.style.display = 'block'; cmdInput.focus(); }
 
+        function openHelp() {
+            document.getElementById('help-modal').classList.add('active');
+        }
+
+        function closeHelp() {
+            document.getElementById('help-modal').classList.remove('active');
+        }
+
+        document.getElementById('help-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'help-modal') closeHelp();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('help-modal').classList.contains('active')) {
+                closeHelp();
+            }
+        });
+
         function exportImage() {
             const off = document.createElement('canvas'); 
             off.width = canvas.width; off.height = canvas.height;
@@ -215,6 +355,11 @@
                     noteArea.value = "";
                     localStorage.clear();
                 }
+                else if (val === 'help' || val === '?') {
+                    cmdInput.style.display = 'none';
+                    cmdInput.value = "";
+                    openHelp();
+                }
                 else if (val.startsWith('text ')) { 
                     const colorName = val.replace('text ', '');
                     noteArea.style.color = colors[colorName] || colorName; 
@@ -227,8 +372,8 @@
                     const num = parseInt(val.replace('ghost ', '')) / 100;
                     if(!isNaN(num)) document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
                 }
-                else if (val.startsWith('text ')) {
-                    const num = parseInt(val.replace('text ', '')) / 100;
+                else if (val.startsWith('text-opacity ')) {
+                    const num = parseInt(val.replace('text-opacity ', '')) / 100;
                     if(!isNaN(num)) document.documentElement.style.setProperty('--text-alpha', Math.max(0.1, Math.min(1, num)));
                 }
                 else if (val.startsWith('pen ')) {
