@@ -353,6 +353,7 @@
                     ctx.clearRect(0, 0, canvas.width, canvas.height);
                     noteArea.value = "";
                     localStorage.clear();
+                    saveLocal();
                 }
                 else if (val === 'help' || val === '?') {
                     cmdInput.style.display = 'none';
@@ -361,22 +362,43 @@
                 }
                 else if (val.startsWith('text opacity ')) {
                     const num = parseInt(val.replace('text opacity ', ''));
-                    if(!isNaN(num)) document.documentElement.style.setProperty('--text-alpha', Math.max(0.01, Math.min(1, num / 100)));
+                    if(!isNaN(num)) {
+                        document.documentElement.style.setProperty('--text-alpha', Math.max(0.01, Math.min(1, num / 100)));
+                        saveLocal();
+                    }
                 }
                 else if (val.startsWith('text ')) { 
                     const colorName = val.replace('text ', '');
-                    noteArea.style.color = colors[colorName] || colorName; 
+                    noteArea.style.color = colors[colorName] || colorName;
+                    saveLocal();
                 }
-                else if (val.startsWith('ink ')) { penColor = colors[val.replace('ink ', '')] || val.replace('ink ', ''); }
-                else if (val.startsWith('weight ')) { penWeight = parseFloat(val.replace('weight ', '')); }
-                else if (val.startsWith('eraser ')) { eraserWeight = parseFloat(val.replace('eraser ', '')); }
-                else if (val.startsWith('size ')) { noteArea.style.fontSize = val.replace('size ', '') + 'px'; }
+                else if (val.startsWith('ink ')) { 
+                    penColor = colors[val.replace('ink ', '')] || val.replace('ink ', '');
+                    saveLocal();
+                }
+                else if (val.startsWith('weight ')) { 
+                    penWeight = parseFloat(val.replace('weight ', ''));
+                    saveLocal();
+                }
+                else if (val.startsWith('eraser ')) { 
+                    eraserWeight = parseFloat(val.replace('eraser ', ''));
+                    saveLocal();
+                }
+                else if (val.startsWith('size ')) { 
+                    noteArea.style.fontSize = val.replace('size ', '') + 'px';
+                    saveLocal();
+                }
                 else if (val.startsWith('ghost ')) { 
                     const num = parseInt(val.replace('ghost ', '')) / 100;
-                    if(!isNaN(num)) document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
+                    if(!isNaN(num)) {
+                        document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
+                        saveLocal();
+                    }
                 }
                 
-                saveLocal(); cmdInput.style.display = 'none'; cmdInput.value = ""; setMode(mode);
+                cmdInput.style.display = 'none'; 
+                cmdInput.value = ""; 
+                setMode(mode);
             }
         });
     </script>
