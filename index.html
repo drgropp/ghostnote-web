@@ -360,9 +360,17 @@
                     cmdInput.value = "";
                     openHelp();
                 }
+                else if (val.startsWith('text-opacity ')) {
+                    const num = parseInt(val.replace('text-opacity ', '')) / 100;
+                    if(!isNaN(num)) document.documentElement.style.setProperty('--text-alpha', Math.max(0.1, Math.min(1, num)));
+                }
                 else if (val.startsWith('text ')) { 
                     const colorName = val.replace('text ', '');
                     noteArea.style.color = colors[colorName] || colorName; 
+                }
+                else if (val.startsWith('pen ')) {
+                    const num = parseInt(val.replace('pen ', '')) / 100;
+                    if(!isNaN(num)) penAlpha = Math.max(0.1, Math.min(1, num));
                 }
                 else if (val.startsWith('ink ')) { penColor = colors[val.replace('ink ', '')] || val.replace('ink ', ''); }
                 else if (val.startsWith('weight ')) { penWeight = parseFloat(val.replace('weight ', '')); }
@@ -371,14 +379,6 @@
                 else if (val.startsWith('ghost ')) { 
                     const num = parseInt(val.replace('ghost ', '')) / 100;
                     if(!isNaN(num)) document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
-                }
-                else if (val.startsWith('text-opacity ')) {
-                    const num = parseInt(val.replace('text-opacity ', '')) / 100;
-                    if(!isNaN(num)) document.documentElement.style.setProperty('--text-alpha', Math.max(0.1, Math.min(1, num)));
-                }
-                else if (val.startsWith('pen ')) {
-                    const num = parseInt(val.replace('pen ', '')) / 100;
-                    if(!isNaN(num)) penAlpha = Math.max(0.1, Math.min(1, num));
                 }
                 
                 saveLocal(); cmdInput.style.display = 'none'; cmdInput.value = ""; setMode(mode);
