@@ -175,9 +175,8 @@
             <div class="help-header">GHOSTNOTE COMMANDS</div>
             <div class="help-body">
                 <div class="help-line"><span class="cmd">:text [color]</span><span class="desc">Change text color</span></div>
-                <div class="help-line"><span class="cmd">:text-opacity [0-100]</span><span class="desc">Text transparency</span></div>
+                <div class="help-line"><span class="cmd">:text opacity [1-100]</span><span class="desc">Text transparency</span></div>
                 <div class="help-line"><span class="cmd">:ink [color]</span><span class="desc">Change pen color</span></div>
-                <div class="help-line"><span class="cmd">:pen [0-100]</span><span class="desc">Pen transparency</span></div>
                 <div class="help-line"><span class="cmd">:weight [number]</span><span class="desc">Pen thickness</span></div>
                 <div class="help-line"><span class="cmd">:eraser [number]</span><span class="desc">Eraser size</span></div>
                 <div class="help-line"><span class="cmd">:size [pixels]</span><span class="desc">Text size</span></div>
@@ -360,17 +359,13 @@
                     cmdInput.value = "";
                     openHelp();
                 }
-                else if (val.startsWith('text-opacity ')) {
-                    const num = parseInt(val.replace('text-opacity ', '')) / 100;
-                    if(!isNaN(num)) document.documentElement.style.setProperty('--text-alpha', Math.max(0.1, Math.min(1, num)));
+                else if (val.startsWith('text opacity ')) {
+                    const num = parseInt(val.replace('text opacity ', ''));
+                    if(!isNaN(num)) document.documentElement.style.setProperty('--text-alpha', Math.max(0.01, Math.min(1, num / 100)));
                 }
                 else if (val.startsWith('text ')) { 
                     const colorName = val.replace('text ', '');
                     noteArea.style.color = colors[colorName] || colorName; 
-                }
-                else if (val.startsWith('pen ')) {
-                    const num = parseInt(val.replace('pen ', '')) / 100;
-                    if(!isNaN(num)) penAlpha = Math.max(0.1, Math.min(1, num));
                 }
                 else if (val.startsWith('ink ')) { penColor = colors[val.replace('ink ', '')] || val.replace('ink ', ''); }
                 else if (val.startsWith('weight ')) { penWeight = parseFloat(val.replace('weight ', '')); }
