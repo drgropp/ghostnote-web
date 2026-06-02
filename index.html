@@ -407,26 +407,26 @@
                         commandExecuted = true;
                     }
                 }
-else if (val.startsWith('ghost ')) {
-    const num = parseInt(val.replace('ghost ', '')) / 100;
-    if (!isNaN(num)) {
-        document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
-        saveLocal();
-        commandExecuted = true;
-    }
-}
-else if (cmd === 'erase' || cmd === 'eraser') {
-    setMode('erase');
-    commandExecuted = true;
-}
-else if (cmd === 'draw') {
-    setMode('draw');
-    commandExecuted = true;
-}
-else if (cmd === 'type' || cmd === 'text') {
-    setMode('text');
-    commandExecuted = true;
-}
+                     else if (val.startsWith('ghost ')) {
+                const num = parseInt(val.replace('ghost ', '')) / 100;
+                if (!isNaN(num)) {
+                    document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
+                    saveLocal();
+                    commandExecuted = true;
+                }
+            }
+            else if (cmd === 'erase' || cmd === 'eraser') {
+                setMode('erase');
+                commandExecuted = true;
+            }
+            else if (cmd === 'draw') {
+                setMode('draw');
+                commandExecuted = true;
+            }
+            else if (cmd === 'type' || cmd === 'text') {
+                setMode('text');
+                commandExecuted = true;
+            }
                     }
                 }
                 
