@@ -43,7 +43,7 @@
         #hint { position: fixed; bottom: 15px; right: 25px; color: #444; font-size: 12px; z-index: 100; cursor: pointer; opacity: 0.5; transition: opacity 0.2s; }
         #hint:hover { opacity: 1; color: var(--accent); }
 
-        #error-msg { position: fixed; bottom: 15px; left: 25px; color: #ff4b2b; font-size: 11px; z-index: 100; opacity: 0; transition: opacity 0.3s ease; letter-spacing: 0.5px; pointer-events: none; }
+        #error-msg { position: fixed; bottom: 15px; left: 25px; color: var(--accent); font-size: 11px; z-index: 100; opacity: 0; transition: opacity 0.3s ease; letter-spacing: 0.5px; pointer-events: none; }
         #error-msg.show { opacity: 1; }
         
         /* COMMAND BAR */
@@ -125,6 +125,32 @@
             flex: 1;
         }
 
+        .note-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            padding: 8px 10px;
+            border: 1px solid #222;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        .note-row:hover {
+            border-color: var(--accent);
+            background: rgba(76, 201, 240, 0.05);
+        }
+        .note-row .nr-name { color: #ccc; flex: 1; }
+        .note-row:hover .nr-name { color: #fff; }
+        .note-row .nr-date { color: #555; font-size: 10px; }
+        .note-row .nr-del {
+            color: #555;
+            padding: 0 4px;
+            transition: color 0.15s ease;
+        }
+        .note-row .nr-del:hover { color: #FF0000; }
+        .notes-empty { color: #555; font-size: 12px; text-align: center; padding: 10px; }
+
         .help-footer {
             text-align: center;
             color: #555;
@@ -163,23 +189,42 @@
         <textarea id="noteArea" spellcheck="false" placeholder="begin"></textarea>
     </div>
     
-    <input type="text" id="cmd" placeholder="Try: :text red, :ink blue, :weight 5, :eraser 20, :wipe">
+    <input type="text" id="cmd" placeholder="Try: :save mynote, :open mynote, :notes, :png, :ink blue, :help">
 
     <div id="help-modal" class="help-modal">
         <div class="help-content">
             <div class="help-header">GHOSTNOTE COMMANDS</div>
             <div class="help-body">
+                <div class="help-line"><span class="cmd">:type / :text</span><span class="desc">Switch to text mode</span></div>
+                <div class="help-line"><span class="cmd">:draw</span><span class="desc">Switch to draw mode</span></div>
+                <div class="help-line"><span class="cmd">:erase / :eraser</span><span class="desc">Switch to eraser mode</span></div>
                 <div class="help-line"><span class="cmd">:text [color]</span><span class="desc">Change text color</span></div>
                 <div class="help-line"><span class="cmd">:ink [color]</span><span class="desc">Change pen color</span></div>
                 <div class="help-line"><span class="cmd">:weight [number]</span><span class="desc">Pen thickness</span></div>
                 <div class="help-line"><span class="cmd">:eraser [number]</span><span class="desc">Eraser size</span></div>
                 <div class="help-line"><span class="cmd">:size [pixels]</span><span class="desc">Text size</span></div>
                 <div class="help-line"><span class="cmd">:ghost [0-100]</span><span class="desc">Background opacity</span></div>
+                <div class="help-line"><span class="cmd">:undo / :redo</span><span class="desc">Step drawing back / forward</span></div>
+                <div class="help-line"><span class="cmd">:save [name]</span><span class="desc">Save note to list</span></div>
+                <div class="help-line"><span class="cmd">:open [name]</span><span class="desc">Load a saved note</span></div>
+                <div class="help-line"><span class="cmd">:notes</span><span class="desc">List saved notes</span></div>
+                <div class="help-line"><span class="cmd">:delete [name]</span><span class="desc">Delete a saved note</span></div>
+                <div class="help-line"><span class="cmd">:export [name]</span><span class="desc">Download note as .json</span></div>
+                <div class="help-line"><span class="cmd">:import</span><span class="desc">Load .json from disk</span></div>
+                <div class="help-line"><span class="cmd">:png</span><span class="desc">Export image to disk</span></div>
                 <div class="help-line"><span class="cmd">:wipe / :clear / :reset</span><span class="desc">Clear all</span></div>
                 <div class="help-line"><span class="cmd">:help / :?</span><span class="desc">Show this menu</span></div>
                 
             </div>
             <div class="help-footer">ESC to close • Click outside to dismiss</div>
+        </div>
+    </div>
+
+    <div id="notes-modal" class="help-modal">
+        <div class="help-content">
+            <div class="help-header">SAVED NOTES</div>
+            <div class="help-body" id="notes-list"></div>
+            <div class="help-footer">click to open • ✕ to delete • ESC to close</div>
         </div>
     </div>
 
@@ -195,10 +240,17 @@
         let penWeight = 2.5;
         let eraserWeight = 20;
         let errorTimer;
+
+        let history = [];
+        let historyIndex = -1;
+        const HISTORY_LIMIT = 50;
+
+        let currentNoteName = localStorage.getItem('gn-current-name') || null;
+        const NOTES_KEY = 'gn-notes';
         
         const colors = { 
-            red: '#ff4b2b', orange: '#ff9068', yellow: '#fbc531', 
-            green: '#00ff41', blue: '#4cc9f0', purple: '#9c88ff', 
+            red: '#FF0000', orange: '#FFA500', yellow: '#FFFF00', 
+            green: '#00ff00', blue: '#0000FF', purple: '#800080', 
             white: '#ffffff', gray: '#888888', black: '#000000' 
         };
 
@@ -215,8 +267,6 @@
 
         function setMode(m) {
             mode = m;
-            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('btn-' + m).classList.add('active');
             noteArea.style.pointerEvents = (m === 'text') ? 'auto' : 'none';
             if(m === 'text') noteArea.focus(); else document.activeElement.blur();
         }
@@ -260,7 +310,38 @@
             lastX = x; lastY = y;
         }
 
-        const end = () => { isDrawing = false; saveLocal(); }
+        const end = () => {
+            if (isDrawing) { isDrawing = false; pushHistory(); }
+            saveLocal();
+        }
+
+        function pushHistory() {
+            // drop any redo states ahead of the current pointer
+            history = history.slice(0, historyIndex + 1);
+            history.push(canvas.toDataURL());
+            if (history.length > HISTORY_LIMIT) history.shift();
+            historyIndex = history.length - 1;
+        }
+
+        function restoreHistory() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (historyIndex < 0) { saveLocal(); return; }
+            const img = new Image();
+            img.onload = () => { ctx.drawImage(img, 0, 0); saveLocal(); };
+            img.src = history[historyIndex];
+        }
+
+        function undo() {
+            if (historyIndex < 0) { showError('nothing to undo'); return; }
+            historyIndex--;
+            restoreHistory();
+        }
+
+        function redo() {
+            if (historyIndex >= history.length - 1) { showError('nothing to redo'); return; }
+            historyIndex++;
+            restoreHistory();
+        }
 
         canvas.addEventListener('mousedown', start);
         canvas.addEventListener('mousemove', drawLine);
@@ -291,9 +372,16 @@
             if (e.target.id === 'help-modal') closeHelp();
         });
 
+        document.getElementById('notes-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'notes-modal') closeNotes();
+        });
+
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape' && document.getElementById('help-modal').classList.contains('active')) {
                 closeHelp();
+            }
+            if (e.key === 'Escape' && document.getElementById('notes-modal').classList.contains('active')) {
+                closeNotes();
             }
         });
 
@@ -329,11 +417,187 @@
         }
 
         noteArea.addEventListener('input', saveLocal);
+
+        /* ---------- NOTES LIST ---------- */
+
+        function getNotes() {
+            try { return JSON.parse(localStorage.getItem(NOTES_KEY)) || {}; }
+            catch { return {}; }
+        }
+
+        function setNotes(notes) {
+            localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+        }
+
+        function snapshotNote() {
+            return {
+                text: noteArea.value,
+                draw: canvas.toDataURL(),
+                textColor: noteArea.style.color,
+                textSize: noteArea.style.fontSize,
+                penColor: penColor,
+                penWeight: penWeight,
+                eraserWeight: eraserWeight,
+                bgAlpha: document.documentElement.style.getPropertyValue('--bg-alpha'),
+                textAlpha: document.documentElement.style.getPropertyValue('--text-alpha'),
+                saved: Date.now()
+            };
+        }
+
+        function autoName() {
+            const d = new Date();
+            const p = (n) => String(n).padStart(2, '0');
+            return `note-${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+        }
+
+        function saveNote(name) {
+            name = (name || '').trim();
+            if (!name) name = currentNoteName || autoName();
+            const notes = getNotes();
+            notes[name] = snapshotNote();
+            setNotes(notes);
+            currentNoteName = name;
+            localStorage.setItem('gn-current-name', name);
+            showError('saved: ' + name);
+        }
+
+        function applyNote(n) {
+            noteArea.value = n.text || '';
+            noteArea.style.color = n.textColor || '';
+            noteArea.style.fontSize = n.textSize || '18px';
+            penColor = n.penColor || '#4cc9f0';
+            penWeight = n.penWeight || 2.5;
+            eraserWeight = n.eraserWeight || 20;
+            if (n.bgAlpha) document.documentElement.style.setProperty('--bg-alpha', n.bgAlpha);
+            if (n.textAlpha) document.documentElement.style.setProperty('--text-alpha', n.textAlpha);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            history = []; historyIndex = -1;
+            if (n.draw) {
+                const img = new Image();
+                img.onload = () => { ctx.drawImage(img, 0, 0); pushHistory(); saveLocal(); };
+                img.src = n.draw;
+            } else {
+                pushHistory(); saveLocal();
+            }
+        }
+
+        function openNote(name) {
+            name = (name || '').trim();
+            const notes = getNotes();
+            if (!notes[name]) { showError('not found: ' + name); return; }
+            applyNote(notes[name]);
+            currentNoteName = name;
+            localStorage.setItem('gn-current-name', name);
+            showError('opened: ' + name);
+        }
+
+        function deleteNote(name) {
+            name = (name || '').trim();
+            const notes = getNotes();
+            if (!notes[name]) { showError('not found: ' + name); return; }
+            delete notes[name];
+            setNotes(notes);
+            if (currentNoteName === name) { currentNoteName = null; localStorage.removeItem('gn-current-name'); }
+            showError('deleted: ' + name);
+        }
+
+        function listNotes() {
+            renderNotesPanel();
+            document.getElementById('notes-modal').classList.add('active');
+        }
+
+        function closeNotes() {
+            document.getElementById('notes-modal').classList.remove('active');
+        }
+
+        function fmtDate(ts) {
+            if (!ts) return '';
+            const d = new Date(ts);
+            const p = (n) => String(n).padStart(2, '0');
+            return `${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+        }
+
+        function renderNotesPanel() {
+            const list = document.getElementById('notes-list');
+            const notes = getNotes();
+            const names = Object.keys(notes).sort((a, b) => (notes[b].saved || 0) - (notes[a].saved || 0));
+            list.innerHTML = '';
+            if (!names.length) {
+                const empty = document.createElement('div');
+                empty.className = 'notes-empty';
+                empty.textContent = 'no saved notes yet — try :save [name]';
+                list.appendChild(empty);
+                return;
+            }
+            names.forEach((name) => {
+                const row = document.createElement('div');
+                row.className = 'note-row';
+
+                const label = document.createElement('span');
+                label.className = 'nr-name';
+                label.textContent = name;
+
+                const date = document.createElement('span');
+                date.className = 'nr-date';
+                date.textContent = fmtDate(notes[name].saved);
+
+                const del = document.createElement('span');
+                del.className = 'nr-del';
+                del.textContent = '✕';
+
+                row.addEventListener('click', () => { closeNotes(); openNote(name); });
+                del.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    deleteNote(name);
+                    renderNotesPanel();
+                });
+
+                row.appendChild(label);
+                row.appendChild(date);
+                row.appendChild(del);
+                list.appendChild(row);
+            });
+        }
+
+        function exportJSON(name) {
+            name = (name || '').trim() || currentNoteName;
+            let note, fname;
+            if (name && getNotes()[name]) { note = getNotes()[name]; fname = name; }
+            else { note = snapshotNote(); fname = currentNoteName || autoName(); }
+            const blob = new Blob([JSON.stringify(note, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = fname + '.ghostnote.json';
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+        }
+
+        function importJSON() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json,application/json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const n = JSON.parse(reader.result);
+                        applyNote(n);
+                        const base = file.name.replace(/\.ghostnote\.json$|\.json$/i, '');
+                        saveNote(base);
+                        showError('imported: ' + base);
+                    } catch { showError('bad file'); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
         
         function loadData() {
             noteArea.value = localStorage.getItem('gn-note') || "";
             const savedDraw = localStorage.getItem('gn-draw');
-            if (savedDraw) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0); img.src = savedDraw; }
+            if (savedDraw) { const img = new Image(); img.onload = () => { ctx.drawImage(img, 0, 0); pushHistory(); }; img.src = savedDraw; }
             const bgA = localStorage.getItem('gn-bg-a');
             if(bgA) document.documentElement.style.setProperty('--bg-alpha', bgA);
             const txtA = localStorage.getItem('gn-txt-a');
@@ -365,6 +629,66 @@
                     cmdInput.style.display = 'none';
                     cmdInput.value = "";
                     openHelp();
+                    commandExecuted = true;
+                }
+                else if (val === 'type' || val === 'text') {
+                    setMode('text');
+                    commandExecuted = true;
+                }
+                else if (val === 'draw') {
+                    setMode('draw');
+                    commandExecuted = true;
+                }
+                else if (val === 'erase' || val === 'eraser') {
+                    setMode('erase');
+                    commandExecuted = true;
+                }
+                else if (val === 'save') {
+                    saveNote();
+                    commandExecuted = true;
+                }
+                else if (val.startsWith('save ')) {
+                    saveNote(val.replace('save ', ''));
+                    commandExecuted = true;
+                }
+                else if (val === 'open' || val === 'load') {
+                    showError('usage: :open [name]');
+                    commandExecuted = true;
+                }
+                else if (val.startsWith('open ') || val.startsWith('load ')) {
+                    openNote(val.replace(/^(open|load) /, ''));
+                    commandExecuted = true;
+                }
+                else if (val === 'notes' || val === 'list') {
+                    listNotes();
+                    commandExecuted = true;
+                }
+                else if (val.startsWith('delete ') || val.startsWith('del ')) {
+                    deleteNote(val.replace(/^(delete|del) /, ''));
+                    commandExecuted = true;
+                }
+                else if (val === 'export' || val === 'json') {
+                    exportJSON();
+                    commandExecuted = true;
+                }
+                else if (val.startsWith('export ')) {
+                    exportJSON(val.replace('export ', ''));
+                    commandExecuted = true;
+                }
+                else if (val === 'import') {
+                    importJSON();
+                    commandExecuted = true;
+                }
+                else if (val === 'png') {
+                    exportImage();
+                    commandExecuted = true;
+                }
+                else if (val === 'undo') {
+                    undo();
+                    commandExecuted = true;
+                }
+                else if (val === 'redo') {
+                    redo();
                     commandExecuted = true;
                 }
                 else if (val.startsWith('text ')) { 
@@ -407,26 +731,12 @@
                         commandExecuted = true;
                     }
                 }
-                     else if (val.startsWith('ghost ')) {
-                const num = parseInt(val.replace('ghost ', '')) / 100;
-                if (!isNaN(num)) {
-                    document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
-                    saveLocal();
-                    commandExecuted = true;
-                }
-            }
-            else if (cmd === 'erase' || cmd === 'eraser') {
-                setMode('erase');
-                commandExecuted = true;
-            }
-            else if (cmd === 'draw') {
-                setMode('draw');
-                commandExecuted = true;
-            }
-            else if (cmd === 'type' || cmd === 'text') {
-                setMode('text');
-                commandExecuted = true;
-            }
+                else if (val.startsWith('ghost ')) {
+                    const num = parseInt(val.replace('ghost ', '')) / 100;
+                    if (!isNaN(num)) {
+                        document.documentElement.style.setProperty('--bg-alpha', Math.max(0.05, Math.min(1, num)));
+                        saveLocal();
+                        commandExecuted = true;
                     }
                 }
                 
