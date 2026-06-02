@@ -248,7 +248,10 @@
         let currentNoteName = localStorage.getItem('gn-current-name') || null;
         const NOTES_KEY = 'gn-notes';
         
-        const colors = { red: '#FF0000', orange: '#FFA500', yellow: '#FFFF00', green: '#00ff00', blue: '#0000FF', purple: '#800080', white: '#ffffff', gray: '#888888', black: '#000000' };
+        const colors = { red: '#FF0000', orange: '#FFA500', yellow: '#FFFF00',
+                         green: '#00ff00', blue: '#0000FF', purple: '#800080',
+                         white: '#ffffff', gray: '#888888', black: '#000000' };
+
 
         function resize() {
             const data = canvas.toDataURL();
