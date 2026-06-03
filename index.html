@@ -212,6 +212,9 @@
                 <div class="help-line"><span class="cmd">:export [name]</span><span class="desc">Download note as .json</span></div>
                 <div class="help-line"><span class="cmd">:import</span><span class="desc">Load .json from disk</span></div>
                 <div class="help-line"><span class="cmd">:png</span><span class="desc">Export image to disk</span></div>
+                <div class="help-line"><span class="cmd">:push [name]</span><span class="desc">Send note to local daemon</span></div>
+                <div class="help-line"><span class="cmd">:pull [name]</span><span class="desc">Get note from local daemon</span></div>
+                <div class="help-line"><span class="cmd">:sync</span><span class="desc">List notes on the daemon</span></div>
                 <div class="help-line"><span class="cmd">:wipe / :clear / :reset</span><span class="desc">Clear all</span></div>
                 <div class="help-line"><span class="cmd">:help / :?</span><span class="desc">Show this menu</span></div>
                 
@@ -247,6 +250,9 @@
 
         let currentNoteName = localStorage.getItem('gn-current-name') || null;
         const NOTES_KEY = 'gn-notes';
+
+        const DAEMON_URL = 'http://127.0.0.1:7777';
+        let daemonOnline = false;
         
         const colors = { 
             red: '#FF0000', orange: '#FFA500', yellow: '#FFFF00', 
@@ -360,12 +366,13 @@
             document.getElementById('help-modal').classList.remove('active');
         }
 
-        function showError(msg) {
+        function showError(msg, isErr) {
             clearTimeout(errorTimer);
             const errorEl = document.getElementById('error-msg');
             errorEl.textContent = msg;
+            errorEl.style.color = isErr ? '#ff4b2b' : 'var(--accent)';
             errorEl.classList.add('show');
-            errorTimer = setTimeout(() => errorEl.classList.remove('show'), 1000);
+            errorTimer = setTimeout(() => errorEl.classList.remove('show'), 1500);
         }
 
         document.getElementById('help-modal').addEventListener('click', (e) => {
@@ -429,18 +436,34 @@
             localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
         }
 
-        function snapshotNote() {
+        function genUUID() {
+            if (crypto && crypto.randomUUID) return crypto.randomUUID();
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                const r = Math.random() * 16 | 0;
+                return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+            });
+        }
+
+        function snapshotNote(name, prev) {
+            const now = Date.now();
+            const draw = canvas.toDataURL();
             return {
+                schema: 'ghostnote/v1',
+                id: (prev && prev.id) || genUUID(),
+                name: name || currentNoteName || autoName(),
                 text: noteArea.value,
-                draw: canvas.toDataURL(),
-                textColor: noteArea.style.color,
-                textSize: noteArea.style.fontSize,
-                penColor: penColor,
-                penWeight: penWeight,
-                eraserWeight: eraserWeight,
-                bgAlpha: document.documentElement.style.getPropertyValue('--bg-alpha'),
-                textAlpha: document.documentElement.style.getPropertyValue('--text-alpha'),
-                saved: Date.now()
+                drawing: draw || null,
+                meta: {
+                    textColor: noteArea.style.color,
+                    textSize: noteArea.style.fontSize,
+                    penColor: penColor,
+                    penWeight: penWeight,
+                    eraserWeight: eraserWeight,
+                    bgAlpha: document.documentElement.style.getPropertyValue('--bg-alpha'),
+                    textAlpha: document.documentElement.style.getPropertyValue('--text-alpha')
+                },
+                created: (prev && prev.created) || now,
+                updated: now
             };
         }
 
@@ -454,7 +477,8 @@
             name = (name || '').trim();
             if (!name) name = currentNoteName || autoName();
             const notes = getNotes();
-            notes[name] = snapshotNote();
+            const prev = notes[name];
+            notes[name] = snapshotNote(name, prev);
             setNotes(notes);
             currentNoteName = name;
             localStorage.setItem('gn-current-name', name);
@@ -462,20 +486,23 @@
         }
 
         function applyNote(n) {
+            // Accept ghostnote/v1 (meta + drawing) and legacy (flat + draw).
+            const meta = n.meta || n;
+            const drawing = (n.drawing !== undefined) ? n.drawing : n.draw;
             noteArea.value = n.text || '';
-            noteArea.style.color = n.textColor || '';
-            noteArea.style.fontSize = n.textSize || '18px';
-            penColor = n.penColor || '#4cc9f0';
-            penWeight = n.penWeight || 2.5;
-            eraserWeight = n.eraserWeight || 20;
-            if (n.bgAlpha) document.documentElement.style.setProperty('--bg-alpha', n.bgAlpha);
-            if (n.textAlpha) document.documentElement.style.setProperty('--text-alpha', n.textAlpha);
+            noteArea.style.color = meta.textColor || '';
+            noteArea.style.fontSize = meta.textSize || '18px';
+            penColor = meta.penColor || '#4cc9f0';
+            penWeight = meta.penWeight || 2.5;
+            eraserWeight = meta.eraserWeight || 20;
+            if (meta.bgAlpha) document.documentElement.style.setProperty('--bg-alpha', meta.bgAlpha);
+            if (meta.textAlpha) document.documentElement.style.setProperty('--text-alpha', meta.textAlpha);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             history = []; historyIndex = -1;
-            if (n.draw) {
+            if (drawing) {
                 const img = new Image();
                 img.onload = () => { ctx.drawImage(img, 0, 0); pushHistory(); saveLocal(); };
-                img.src = n.draw;
+                img.src = drawing;
             } else {
                 pushHistory(); saveLocal();
             }
@@ -484,7 +511,7 @@
         function openNote(name) {
             name = (name || '').trim();
             const notes = getNotes();
-            if (!notes[name]) { showError('not found: ' + name); return; }
+            if (!notes[name]) { showError('not found: ' + name, true); return; }
             applyNote(notes[name]);
             currentNoteName = name;
             localStorage.setItem('gn-current-name', name);
@@ -494,7 +521,7 @@
         function deleteNote(name) {
             name = (name || '').trim();
             const notes = getNotes();
-            if (!notes[name]) { showError('not found: ' + name); return; }
+            if (!notes[name]) { showError('not found: ' + name, true); return; }
             delete notes[name];
             setNotes(notes);
             if (currentNoteName === name) { currentNoteName = null; localStorage.removeItem('gn-current-name'); }
@@ -520,7 +547,7 @@
         function renderNotesPanel() {
             const list = document.getElementById('notes-list');
             const notes = getNotes();
-            const names = Object.keys(notes).sort((a, b) => (notes[b].saved || 0) - (notes[a].saved || 0));
+            const names = Object.keys(notes).sort((a, b) => ((notes[b].updated || notes[b].saved || 0) - (notes[a].updated || notes[a].saved || 0)));
             list.innerHTML = '';
             if (!names.length) {
                 const empty = document.createElement('div');
@@ -539,7 +566,7 @@
 
                 const date = document.createElement('span');
                 date.className = 'nr-date';
-                date.textContent = fmtDate(notes[name].saved);
+                date.textContent = fmtDate(notes[name].updated || notes[name].saved);
 
                 const del = document.createElement('span');
                 del.className = 'nr-del';
@@ -563,7 +590,7 @@
             name = (name || '').trim() || currentNoteName;
             let note, fname;
             if (name && getNotes()[name]) { note = getNotes()[name]; fname = name; }
-            else { note = snapshotNote(); fname = currentNoteName || autoName(); }
+            else { fname = currentNoteName || autoName(); note = snapshotNote(fname, null); }
             const blob = new Blob([JSON.stringify(note, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.download = fname + '.ghostnote.json';
@@ -584,14 +611,80 @@
                     try {
                         const n = JSON.parse(reader.result);
                         applyNote(n);
-                        const base = file.name.replace(/\.ghostnote\.json$|\.json$/i, '');
+                        const base = (n && n.name) ? n.name : file.name.replace(/\.ghostnote\.json$|\.json$/i, '');
                         saveNote(base);
                         showError('imported: ' + base);
-                    } catch { showError('bad file'); }
+                    } catch { showError('bad file', true); }
                 };
                 reader.readAsText(file);
             };
             input.click();
+        }
+
+        /* ---------- DAEMON SYNC ---------- */
+
+        async function checkDaemon() {
+            try {
+                const res = await fetch(DAEMON_URL + '/health', { method: 'GET' });
+                const data = await res.json();
+                daemonOnline = !!(data && data.ok);
+            } catch {
+                daemonOnline = false;
+            }
+            return daemonOnline;
+        }
+
+        async function pushToDaemon(name) {
+            name = (name || '').trim() || currentNoteName;
+            if (!name) { saveNote(); name = currentNoteName; }
+            // make sure it's saved locally first, then grab the v1 object
+            saveNote(name);
+            const note = getNotes()[name];
+            if (!note) { showError('nothing to push', true); return; }
+            try {
+                const res = await fetch(DAEMON_URL + '/notes/' + encodeURIComponent(name), {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(note)
+                });
+                if (!res.ok) throw new Error('http ' + res.status);
+                daemonOnline = true;
+                showError('pushed: ' + name);
+            } catch (e) {
+                daemonOnline = false;
+                showError('daemon offline — try :export', true);
+            }
+        }
+
+        async function pullFromDaemon(name) {
+            name = (name || '').trim();
+            if (!name) { showError('usage: :pull [name]', true); return; }
+            try {
+                const res = await fetch(DAEMON_URL + '/notes/' + encodeURIComponent(name), { method: 'GET' });
+                if (!res.ok) throw new Error('http ' + res.status);
+                const note = await res.json();
+                daemonOnline = true;
+                applyNote(note);
+                saveNote(note.name || name);
+                showError('pulled: ' + (note.name || name));
+            } catch (e) {
+                daemonOnline = false;
+                showError('daemon offline or not found', true);
+            }
+        }
+
+        async function listDaemon() {
+            try {
+                const res = await fetch(DAEMON_URL + '/notes', { method: 'GET' });
+                if (!res.ok) throw new Error('http ' + res.status);
+                const data = await res.json();
+                daemonOnline = true;
+                const names = (data.notes || []).map(n => n.name);
+                showError(names.length ? 'daemon: ' + names.join('  •  ') : 'daemon: no notes');
+            } catch (e) {
+                daemonOnline = false;
+                showError('daemon offline', true);
+            }
         }
         
         function loadData() {
@@ -610,6 +703,7 @@
             eraserWeight = parseFloat(localStorage.getItem('gn-eraser-w')) || 20;
         }
         loadData();
+        checkDaemon();
 
         window.addEventListener('keydown', (e) => {
             if (e.key === ':' && document.activeElement.id !== 'cmd') {
@@ -656,7 +750,7 @@
                     commandExecuted = true;
                 }
                 else if (val === 'open' || val === 'load') {
-                    showError('usage: :open [name]');
+                    showError('usage: :open [name]', true);
                     commandExecuted = true;
                 }
                 else if (val.startsWith('open ') || val.startsWith('load ')) {
@@ -685,6 +779,26 @@
                 }
                 else if (val === 'png') {
                     exportImage();
+                    commandExecuted = true;
+                }
+                else if (val === 'push') {
+                    pushToDaemon();
+                    commandExecuted = true;
+                }
+                else if (val.startsWith('push ')) {
+                    pushToDaemon(val.replace('push ', ''));
+                    commandExecuted = true;
+                }
+                else if (val === 'pull') {
+                    showError('usage: :pull [name]', true);
+                    commandExecuted = true;
+                }
+                else if (val.startsWith('pull ')) {
+                    pullFromDaemon(val.replace('pull ', ''));
+                    commandExecuted = true;
+                }
+                else if (val === 'sync') {
+                    listDaemon();
                     commandExecuted = true;
                 }
                 else if (val === 'undo') {
@@ -747,7 +861,7 @@
                 }
                 
                 if (!commandExecuted && val.length > 0) {
-                    showError('unknown command');
+                    showError('unknown command', true);
                 }
                 
                 cmdInput.style.display = 'none'; 
