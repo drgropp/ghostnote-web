@@ -1,4 +1,4 @@
-# ghostnote
+# ghostnote web
 
 A minimalist, command-driven notes tool with **text and drawing** — runs
 entirely in your browser, no account, no cloud, no install. Type notes, sketch
